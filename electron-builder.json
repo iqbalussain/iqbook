@@ -9,10 +9,16 @@
 
   "files": [
     "dist/**/*",
-    "main.js",
-    "preload.js",
-    "diagnostic-logger.js",
-    "package.json"
+    "main.cjs",
+    "preload.cjs",
+    "diagnostic-logger.cjs",
+    "package.json",
+    "!**/*.map",
+    "!src",
+    "!test",
+    "!docs",
+    "!*.md",
+    "!node_modules/.cache"
   ],
   
   "asar": true,

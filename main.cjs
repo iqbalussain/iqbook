@@ -3,7 +3,7 @@ const fs = require('fs');
 const { app, BrowserWindow, dialog, shell, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const sqlite3 = require('sqlite3').verbose();
-const DiagnosticLogger = require('./diagnostic-logger');
+const DiagnosticLogger = require('./diagnostic-logger.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
 const diagnostics = new DiagnosticLogger();
@@ -152,7 +152,7 @@ function createWindow() {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
     },
   });
