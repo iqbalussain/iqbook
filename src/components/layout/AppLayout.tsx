@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect, useCallback } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { FloatingActionButton } from '@/components/layout/FloatingActionButton';
@@ -47,6 +47,7 @@ const reportSubmenuItems = [
 
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(location.pathname.startsWith('/reports'));
   const { theme, setTheme } = useTheme();
@@ -67,6 +68,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const toggleTheme = useCallback(() => {
     setTheme(theme === 'dark' ? 'light' : 'dark');
   }, [setTheme, theme]);
+
+
+  const navigateTo = useCallback((href: string) => {
+    if (!href) return;
+    navigate(href);
+    setSidebarOpen(false);
+  }, [navigate]);
 
   const getIsActive = (href: string | null) => {
     if (!href) return false;
@@ -100,6 +108,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     key={item.name}
                     to={item.href || '/'}
+                    onClick={(event) => { event.preventDefault(); navigateTo(item.href || '/'); }}
                     className={cn(
                       'group flex items-center gap-3 rounded-3xl px-4 py-3 transition-all duration-200',
                       active
@@ -131,6 +140,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                       <Link
                         key={item.name}
                         to={item.href}
+                        onClick={(event) => { event.preventDefault(); navigateTo(item.href); }}
                         className={cn(
                           'flex items-center gap-2 rounded-2xl px-3 py-2 text-sm transition-colors',
                           getIsActive(item.href)
@@ -214,6 +224,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     <Link
                       key={item.name}
                       to={item.href || '/'}
+                      onClick={(event) => { event.preventDefault(); navigateTo(item.href || '/'); }}
                       className={cn(
                         'flex items-center gap-3 rounded-3xl px-4 py-3 transition',
                         getIsActive(item.href)
