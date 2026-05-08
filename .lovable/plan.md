@@ -1,101 +1,88 @@
+## Goal
 
+Make the app stable and fast, fix all build/dev issues, and ensure the Windows EXE builds cleanly via GitHub Actions — without changing any feature, UI, route, menu, or database structure.
 
-# Fix Build Errors, Failed-Module Loads, and Make Offline `.exe` Launch Reliably
+No new pages. No design changes. Dark theme stays. Existing /payments, vouchers, and routes remain identical.
 
-## Root cause (one underlying problem causing all symptoms)
+## Issues found in audit
 
-`package.json` is missing critical devDependencies and the previously-added installer scripts have been wiped. Specifically:
+1. **All 29 page modules eagerly imported in `src/App.tsx`** → big initial bundle, slow first paint, contributes to white screen / freeze on Dashboard.
+2. **`lucide-react: ^1.11.0`** in `package.json` is wrong (current major is 0.5xx). Wrong/missing icons can crash any page that imports a non-existent icon.
+3. **`recharts: ^3.8.1`** is alpha; Dashboard uses `AreaChart` and is the page that "freezes". v2 is the stable line.
+4. **`react-resizable-panels: ^4.10.0`** breaks shadcn's `src/components/ui/resizable.tsx` (expects v2 API).
+5. **`react-router-dom: ^7.x`** with `HashRouter` works, but several deps and types are out of sync — pin to a known-good combo.
+6. **No `React.lazy` + `Suspense`** anywhere → no code splitting.
+7. **Dashboard** uses `useMemo` already but reads several large arrays directly from context every render; missing `Suspense` fallback means a single slow page blocks the whole tree.
+8. **Electron `main.cjs`**: security flags are correct (`contextIsolation: true`, `nodeIntegration: false`). Loads `dist/index.html` via `loadFile` — fine because `vite.config.ts` already has `base: "./"` and App uses `HashRouter`. No change needed beyond confirming dev/prod URL switch.
+9. **`build-win` script** runs `electron-rebuild` but `electron-rebuild` isn't a guaranteed devDep. Replace with `electron-builder install-app-deps` which is bundled with electron-builder.
+10. **`.github/workflows/release.yml`** runs `npm ci` then `npm run build-win` on `windows-latest` — correct, but depends on the script fix above.
 
-- **No `@types/react` / `@types/react-dom`** → TypeScript sees a transitive, mismatched copy. Class components like `ErrorBoundary` get the wrong `Component` base type → **TS2786 "missing context, setState, forceUpdate, props, refs"** in `App.tsx`.
-- **`tsconfig.app.json` has `"types": ["vitest/globals"]`** but `vitest` isn't installed. The `types` array also suppresses default global type discovery, worsening the React types problem.
-- **TS errors break the Vite dev module graph** → `Failed to fetch dynamically imported module: /src/pages/QuotationsList.tsx` (and every other lazy page). This is why "most pages" fail to load.
-- **No `electron-builder`, no `build-win` script, no native rebuild step** → `.exe` either doesn't build or installs but crashes on launch (sqlite3 native binding mismatch).
-- **No `express`, `better-sqlite3`, `cors` as top-level deps for the bundled LAN server** → server can't start after install.
+## Changes (small, surgical)
 
-Fixing the `package.json` and `tsconfig.app.json` resolves the build errors AND the runtime "Failed to fetch module" errors in one shot.
+### 1. `src/App.tsx` — lazy load every page, add Suspense fallback
 
-## Changes
+- Convert all 29 `import Page from "./pages/..."` to `const Page = lazy(() => import("./pages/..."))`.
+- Wrap `<Routes>` in `<Suspense fallback={<RouteFallback />}>` where `RouteFallback` is a tiny centered spinner using existing tokens (no new design).
+- Keep Dashboard eager (it's the landing route — lazy would just add a flash) OR lazy with a minimal skeleton. Choose lazy for consistency; user said dashboard freezes, so isolating it under Suspense + ErrorBoundary helps.
+- Routes, paths, ErrorBoundary wrappers — all unchanged.
 
-### 1. `package.json` — restore missing pieces
+### 2. `package.json` — pin known-good versions, fix scripts
 
-Add to `devDependencies`:
-- `typescript`, `@types/react`, `@types/react-dom`, `@types/node`
-- `electron-builder` (required for NSIS `.exe`)
-- `vitest`, `@testing-library/react`, `@vitest/ui` (referenced by `vitest.config.ts` and `tsconfig.app.json`)
+Dependency fixes (upgrade/downgrade, no removals):
+- `lucide-react`: `^1.11.0` → `^0.462.0` (the version shadcn templates use)
+- `recharts`: `^3.8.1` → `^2.12.7`
+- `react-resizable-panels`: `^4.10.0` → `^2.1.7`
+- Add devDeps if missing: `@types/react`, `@types/react-dom`, `@types/node`, `electron-builder`, `electron`, `cross-env`, `concurrently`, `wait-on`, `typescript`, `@vitejs/plugin-react-swc`, `vite`, `tailwindcss`, `postcss`, `autoprefixer`.
 
-Add to `dependencies` (used by the bundled LAN server that the Electron app spawns):
-- `express`, `better-sqlite3`, `cors`
-
-Add scripts:
+Script fixes:
 ```json
-"build-win": "npm run build && npm run rebuild-electron && npx electron-builder --config electron-builder.json --win nsis --x64 --publish never",
 "rebuild-electron": "electron-builder install-app-deps",
-"postinstall": "electron-builder install-app-deps"
+"postinstall": "electron-builder install-app-deps || true",
+"build-win": "npm run build && npm run rebuild-electron && npx electron-builder --win nsis --x64 --publish never"
 ```
+The `|| true` prevents `npm ci` from failing on Linux CI before Windows-specific rebuild.
 
-### 2. `tsconfig.app.json` — remove the broken `types` restriction
+### 3. `electron-builder.json` — already correct
 
-- Remove `"types": ["vitest/globals"]`. Vitest globals are picked up via `vitest.config.ts` + a triple-slash reference in `src/test/setup.ts` instead. This unblocks default React type resolution.
+`asar: true`, `asarUnpack: ["node_modules/sqlite3/**/*"]`, `nodeGypRebuild: false`, `npmRebuild: false`. No change needed.
 
-### 3. `src/components/ErrorBoundary.tsx` — defensive: explicit props
+### 4. `main.cjs` — no behavioral change
 
-The class is fine, but to make it bulletproof against any remaining type-resolution oddity, declare props explicitly with `React.PropsWithChildren` and add `static displayName`. Tiny edit, no behavior change.
+Already correct: dev → `loadURL('http://localhost:5173')`, prod → `loadFile('dist/index.html')`. Security flags correct. Leave as is.
 
-### 4. One-step "Always launches offline" guarantee for the installed `.exe`
+### 5. `.github/workflows/release.yml` — confirm
 
-You said the `.exe` keeps showing "missing dependency" errors after install. The plan:
+Already on `windows-latest`, runs `npm ci && npm run build-win`, uploads `dist-electron/*.exe` to the release. With the script fix in step 2 this works. No file change required unless `npm ci` fails on the lockfile — in that case fall back to `npm install`.
 
-**a) Native module is properly unpacked & rebuilt for Electron**
-- `electron-builder.json` already has `asarUnpack: ["node_modules/sqlite3/**/*"]`. We'll also add `node_modules/better-sqlite3/**/*` (used by the LAN server) and ensure `buildDependenciesFromSource: true` + `nodeGypRebuild: false` so the installer doesn't try to compile on the user's PC.
-- `postinstall` + `rebuild-electron` ensure the native `.node` bindings shipped in the installer match Electron's Node ABI.
+### 6. Tiny perf nits in `src/pages/Dashboard.tsx`
 
-**b) Auto-fallback to offline mode on launch**
-- New module `offline-launch-verifier.js` already exists in the repo. Wire it into `main.js` so on every launch:
-  1. Verify `userData` directory is writable.
-  2. Verify the bundled `dist/` exists (or dev URL is reachable).
-  3. Verify SQLite native binding loads.
-  4. If LAN server mode is configured but unreachable → silently fall back to local SQLite (offline) and show a small banner: "Working offline — server unreachable".
-- This means the user double-clicks the desktop shortcut and the app **always opens** even if the LAN server / network is down.
+- Wrap `LocalInstallationSetup` in `Suspense`/lazy (it triggers Electron checks).
+- No other change — `useMemo` is already in place.
 
-**c) Bundle a minimal DB seed**
-- On first launch, if `userData/Bit2book.db` doesn't exist, create it from the bundled schema. No internet, no extra install steps.
-
-**d) Single-instance lock + AppUserModelId** (already in `main.js` from the prior change) — keep them.
-
-### 5. Installation instructions (updated `INSTALLATION_GUIDE_WINDOWS.md`)
-
-Short, end-user friendly:
-1. Download `Bit2book Setup 1.0.0.exe` from the Releases page.
-2. Right-click → **Run as administrator** (only needed first time, for native module registration).
-3. Follow the wizard → choose install location → desktop shortcut auto-created.
-4. Double-click the desktop shortcut. App opens offline immediately, no extra config needed.
-5. (Optional) For LAN multi-user: open Settings → Network, switch to **Server** on host PC; on each client PC switch to **Client** and paste the host's `http://<lan-ip>:4000`.
-
-### 6. How the `.exe` is actually produced
-
-You **cannot build a Windows `.exe` from this Linux sandbox** (electron-builder needs Windows tooling for NSIS + signtool). The repo already has `.github/workflows/release.yml` set up for `windows-latest`. After the code changes are merged, push a tag (e.g. `v1.0.1`) and GitHub Actions will:
-- run `npm ci`
-- run `npm run build-win`
-- upload `Bit2book Setup 1.0.1.exe` to the GitHub Release
-
-The instructions above will be added to the README so you can trigger this with one git tag.
-
-## Files changed
+## Files touched
 
 | File | Change |
 |---|---|
-| `package.json` | Add missing devDeps (typescript, @types/react, @types/react-dom, @types/node, electron-builder, vitest, testing-library), runtime deps (express, better-sqlite3, cors), scripts (`build-win`, `rebuild-electron`, `postinstall`) |
-| `tsconfig.app.json` | Remove `"types": ["vitest/globals"]` |
-| `src/components/ErrorBoundary.tsx` | Tighten typing with `React.PropsWithChildren` + `displayName` |
-| `electron-builder.json` | Add `better-sqlite3` to `asarUnpack`, set `nodeGypRebuild: false` |
-| `main.js` | Wire `offline-launch-verifier.js` into startup; auto-fallback to offline if LAN server unreachable; show inline banner instead of blocking dialog |
-| `INSTALLATION_GUIDE_WINDOWS.md` | Rewrite as a clear 5-step guide; add the GitHub Actions tag-to-release flow |
-| `README.md` | Link to the new install guide; document offline-by-default behavior |
+| `src/App.tsx` | Convert 29 imports to `React.lazy`, add `<Suspense>` |
+| `package.json` | Pin `lucide-react`, `recharts`, `react-resizable-panels`; fix scripts; ensure devDeps |
+| `src/pages/Dashboard.tsx` | Lazy-load `LocalInstallationSetup` only |
 
-## Why this fixes the runtime "Failed to fetch dynamically imported module"
+That is the entire change set. Three files. Everything else (routes, menus, AppLayout, RadialMenu, vouchers, theme, DB, IPC, Electron security) is left untouched.
 
-That error appears whenever Vite's TypeScript checker rejects a module in the dependency graph — the dev server then refuses to serve the lazy chunk. Once `@types/react` is installed correctly and `tsconfig.app.json` no longer specifies a missing `vitest/globals`, every page (`QuotationsList`, `InvoicesList`, etc.) will compile and load again.
+## Verification after build mode runs
 
-## Credit budget
-All changes are small, mostly config/manifest edits + one main.js wiring. Fits within ~0.8 credits as requested. No UI redesign, no new features, no schema migration.
+1. `npm run dev` starts cleanly.
+2. Vite log clean of "Failed to fetch dynamically imported module".
+3. Dashboard renders fast (Suspense fallback briefly visible, then content).
+4. Each route navigates without re-downloading the whole bundle.
+5. `npm run build` produces `dist/` with no TS errors.
+6. Pushing a tag on GitHub triggers `release.yml` and produces `Bit2book Setup x.y.z.exe`.
 
+## Out of scope (per your answers)
+
+- New voucher pages (Receipt/Payment/Debit/Credit Note) — not added.
+- Edit history / user tracking / duplicate prevention — not added.
+- Invoice payment-status surfacing in PDF — not added.
+- Auth / Lovable Cloud — not enabled.
+
+If you want any of those next, we'll do them as a separate focused pass.
