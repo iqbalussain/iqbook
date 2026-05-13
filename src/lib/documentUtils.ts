@@ -146,8 +146,8 @@ export async function generatePDFBlob({ type, document: docData, client, setting
         }
         
         .logo { 
-          width: 80px; 
-          height: 80px; 
+          width: 100px; 
+          height: 100px; 
           object-fit: contain; 
           flex-shrink: 0;
         }
@@ -167,9 +167,9 @@ export async function generatePDFBlob({ type, document: docData, client, setting
         }
         
         .business-meta { 
-          font-size: 10px; 
+          font-size: 11px; 
           color: #6b7280; 
-          line-height: 1.2;
+          line-height: 1.3;
         }
         
         .business-meta br {
@@ -183,11 +183,11 @@ export async function generatePDFBlob({ type, document: docData, client, setting
         }
         
         .doc-type { 
-          font-size: 22px; 
+          font-size: 20px; 
           font-weight: bold; 
           text-transform: uppercase;
           color: ${isInvoice ? '#10b981' : '#3b82f6'};
-          margin-bottom: 5px;
+          margin-bottom: 4px;
         }
         
         .doc-number { 
@@ -198,7 +198,7 @@ export async function generatePDFBlob({ type, document: docData, client, setting
         }
         
         .doc-date { 
-          font-size: 10px; 
+          font-size: 11px; 
           color: #6b7280;
         }
         
@@ -206,7 +206,7 @@ export async function generatePDFBlob({ type, document: docData, client, setting
         .parties { 
           display: flex;
           justify-content: space-between;
-          gap: 30px;
+          gap: 20px;
           margin-bottom: 25px;
         }
         
@@ -263,8 +263,8 @@ export async function generatePDFBlob({ type, document: docData, client, setting
         }
         
         .meta-value { 
-          font-size: 12px; 
-          font-weight: 600; 
+          font-size: 10px; 
+          font-weight: 400; 
           color: #111827; 
           word-wrap: break-word;
         }
@@ -341,14 +341,14 @@ export async function generatePDFBlob({ type, document: docData, client, setting
         .summary-row { 
           display: flex; 
           justify-content: space-between; 
-          gap: 12px; 
-          font-size: 11px;
-          line-height: 1.4;
+          gap: 10px; 
+          font-size: 10px;
+          line-height: 1.2;
         }
         
         .summary-row strong { 
           color: #111827; 
-          font-weight: 600;
+          font-weight: 500;
         }
         
         .progress-wrap { 
@@ -565,20 +565,6 @@ export async function generatePDFBlob({ type, document: docData, client, setting
             `).join('')}
           </tbody>
         </table>
-
-        ${isProjectInvoice && projectSummary ? `
-        <div class="summary-grid">
-          <div class="summary-row"><span>Project Total Value</span><strong>${formatMoney(projectSummary.projectTotalValue)}</strong></div>
-          <div class="summary-row"><span>Previously Invoiced</span><strong>${formatPct(projectSummary.previousPercentage)} (${formatMoney(projectSummary.previousAmount)})</strong></div>
-          <div class="summary-row"><span>Current Invoice</span><strong>${formatPct(projectSummary.currentPercentage)} (${formatMoney(projectSummary.currentAmount)})</strong></div>
-          <div class="summary-row"><span>Total Invoiced</span><strong>${formatPct(projectSummary.totalInvoicedPercentage)} (${formatMoney(projectSummary.totalInvoicedAmount)})</strong></div>
-          <div class="summary-row"><span>Remaining</span><strong>${formatPct(projectSummary.remainingPercentage)} (${formatMoney(projectSummary.remainingAmount)})</strong></div>
-          <div class="progress-wrap">
-            <div class="summary-row" style="margin-bottom: 4px;"><span>Progress</span><strong>${formatPct(projectSummary.totalInvoicedPercentage)}</strong></div>
-            <div class="progress-track"><div class="progress-fill" style="width: ${Math.min(100, Math.max(0, projectSummary.totalInvoicedPercentage))}%;"></div></div>
-          </div>
-        </div>
-        ` : ''}
         
         <!-- Totals -->
         <div class="totals">
@@ -600,6 +586,20 @@ export async function generatePDFBlob({ type, document: docData, client, setting
         <div class="amount-in-words">
           <p><strong>Amount in Words:</strong> ${numberToWords(docData.netTotal, settings.currency)}</p>
         </div>
+
+                ${isProjectInvoice && projectSummary ? `
+        <div class="summary-grid">
+          <div class="summary-row"><span>Project Total Value</span><strong>${formatMoney(projectSummary.projectTotalValue)}</strong></div>
+          <div class="summary-row"><span>Previously Invoiced</span><strong>${formatPct(projectSummary.previousPercentage)} (${formatMoney(projectSummary.previousAmount)})</strong></div>
+          <div class="summary-row"><span>Current Invoice</span><strong>${formatPct(projectSummary.currentPercentage)} (${formatMoney(projectSummary.currentAmount)})</strong></div>
+          <div class="summary-row"><span>Total Invoiced</span><strong>${formatPct(projectSummary.totalInvoicedPercentage)} (${formatMoney(projectSummary.totalInvoicedAmount)})</strong></div>
+          <div class="summary-row"><span>Remaining</span><strong>${formatPct(projectSummary.remainingPercentage)} (${formatMoney(projectSummary.remainingAmount)})</strong></div>
+          <div class="progress-wrap">
+            <div class="summary-row" style="margin-bottom: 6px;"><span>Progress</span><strong>${formatPct(projectSummary.totalInvoicedPercentage)}</strong></div>
+            <div class="progress-track"><div class="progress-fill" style="width: ${Math.min(100, Math.max(0, projectSummary.totalInvoicedPercentage))}%;"></div></div>
+          </div>
+        </div>
+        ` : ''}
         
         ${(settings.bankName || settings.bankAccountNumber) ? `
         <div class="notes-section">
@@ -677,7 +677,7 @@ export async function generatePDFBlob({ type, document: docData, client, setting
     
     const worker = html2pdf()
       .set({
-        margin: [8, 8, 8, 8],
+        margin: [3, 3, 3, 3 ],
         filename: `${type}-${docData.number}.pdf`,
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: {
