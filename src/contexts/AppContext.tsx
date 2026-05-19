@@ -385,6 +385,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return payments.filter((p) => clientInvoiceIds.includes(p.invoiceId) || clientPurchaseIds.includes(p.invoiceId));
   };
 
+  const removeJournalByReference = (
+    referenceType: JournalEntry['referenceType'],
+    referenceId: string,
+  ) => {
+    setJournalEntries((prev) =>
+      prev.filter((e) => !(e.referenceType === referenceType && e.referenceId === referenceId)),
+    );
+  };
+
+  const refreshInvoiceStatusAfterPayment = (payment: Payment, removedAmount: number) => {
+    if (payment.invoiceType === 'sales') {
+      const inv = invoices.find((i) => i.id === payment.invoiceId);
+      if (!inv) return;
+      const remainingPaid = payments
+        .filter((p) => p.invoiceId === inv.id && p.id !== payment.id)
+        .reduce((s, p) => s + p.amount, 0) - removedAmount;
+      const totalPaid = Math.max(0, remainingPaid + payment.amount); // already adjusted by caller
+      const status: InvoiceStatus =
+        totalPaid <= 0 ? 'sent' : totalPaid < inv.netTotal ? 'partial' : 'paid';
+      setInvoices((prev) => prev.map((i) => (i.id === inv.id ? { ...i, status, updatedAt: new Date().toISOString() } : i)));
+    } else {
+      const pi = purchaseInvoices.find((p) => p.id === payment.invoiceId);
+      if (!pi) return;
+      const remainingPaid = payments
+        .filter((p) => p.invoiceId === pi.id && p.id !== payment.id)
+        .reduce((s, p) => s + p.amount, 0) - removedAmount;
+      const totalPaid = Math.max(0, remainingPaid + payment.amount);
+      const status = totalPaid <= 0 ? 'sent' : totalPaid < pi.netTotal ? 'partial' : 'paid';
+      setPurchaseInvoices((prev) => prev.map((p) => (p.id === pi.id ? { ...p, status: status as any, updatedAt: new Date().toISOString() } : p)));
+    }
+  };
+
+  const updatePayment = (payment: Payment) => {
+    setPayments((prev) => prev.map((p) => (p.id === payment.id ? payment : p)));
+    addAuditEntry({
+      type: 'payment', action: 'updated',
+      target: payment.reference || payment.invoiceId,
+      details: `Payment updated (${payment.method})`,
+      value: payment.amount,
+    });
+  };
+
+  const deletePayment = (id: string) => {
+    const existing = payments.find((p) => p.id === id);
+    if (!existing) return;
+    setPayments((prev) => prev.filter((p) => p.id !== id));
+    // Remove linked journal entries
+    const refType: JournalEntry['referenceType'] = existing.invoiceType === 'sales' ? 'receipt' : 'payment';
+    removeJournalByReference(refType, existing.id);
+    // Recompute parent invoice status
+    if (existing.invoiceType === 'sales') {
+      const inv = invoices.find((i) => i.id === existing.invoiceId);
+      if (inv) {
+        const remaining = payments
+          .filter((p) => p.invoiceId === inv.id && p.id !== id)
+          .reduce((s, p) => s + p.amount, 0);
+        const status: InvoiceStatus =
+          remaining <= 0 ? 'sent' : remaining < inv.netTotal ? 'partial' : 'paid';
+        setInvoices((prev) => prev.map((i) => (i.id === inv.id ? { ...i, status, updatedAt: new Date().toISOString() } : i)));
+      }
+    } else {
+      const pi = purchaseInvoices.find((p) => p.id === existing.invoiceId);
+      if (pi) {
+        const remaining = payments
+          .filter((p) => p.invoiceId === pi.id && p.id !== id)
+          .reduce((s, p) => s + p.amount, 0);
+        const status = remaining <= 0 ? 'sent' : remaining < pi.netTotal ? 'partial' : 'paid';
+        setPurchaseInvoices((prev) => prev.map((p) => (p.id === pi.id ? { ...p, status: status as any, updatedAt: new Date().toISOString() } : p)));
+      }
+    }
+    addAuditEntry({
+      type: 'payment', action: 'deleted',
+      target: existing.reference || existing.invoiceId,
+      details: 'Payment deleted and journal reversed',
+      value: existing.amount,
+    });
+  };
+
   // Account operations
   const addAccount = (account: Account) => {
     if (!account.kind) {
