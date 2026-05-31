@@ -1,4 +1,4 @@
-# BookIt - Invoice Management System
+# Iqbook - Invoice Management System
 
 A modern invoice and accounting management application built with React, TypeScript, and Electron.
 
