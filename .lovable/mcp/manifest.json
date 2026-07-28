@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "sdk_version": "0.25.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://ilhfjxmumtvhmfdcmnsg.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "iqbook-mcp",
+      "version": "0.1.0",
+      "title": "IQBook"
+    },
+    "tools": [
+      {
+        "name": "list_clients",
+        "title": "List clients",
+        "description": "List the signed-in user's customers and vendors, optionally filtered by name or type.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "search": {
+              "description": "Filter by client name.",
+              "type": "string"
+            },
+            "type": {
+              "description": "Filter by party type.",
+              "type": "string",
+              "enum": [
+                "customer",
+                "vendor",
+                "both"
+              ]
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_invoices",
+        "title": "List sales invoices",
+        "description": "List the signed-in user's sales invoices with number, client, totals, status and due date.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "status": {
+              "description": "Filter by invoice status.",
+              "type": "string",
+              "enum": [
+                "draft",
+                "sent",
+                "paid",
+                "partial",
+                "overdue",
+                "cancelled"
+              ]
+            },
+            "client_id": {
+              "description": "Filter by client id.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_items",
+        "title": "List inventory items",
+        "description": "List the signed-in user's inventory items with rate, cost and current stock.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "search": {
+              "description": "Filter by item name.",
+              "type": "string"
+            },
+            "low_stock_only": {
+              "description": "Only return items at or below their reorder level.",
+              "type": "boolean"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_vouchers",
+        "title": "List vouchers",
+        "description": "List the signed-in user's accounting vouchers (expense, contra, loan, journal) with amounts and narration.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "type": {
+              "description": "Filter by voucher type.",
+              "type": "string",
+              "enum": [
+                "contra",
+                "expense",
+                "loan_given",
+                "loan_received",
+                "journal"
+              ]
+            },
+            "from_date": {
+              "description": "Earliest voucher date (YYYY-MM-DD).",
+              "type": "string"
+            },
+            "to_date": {
+              "description": "Latest voucher date (YYYY-MM-DD).",
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "financial_summary",
+        "title": "Financial summary",
+        "description": "Summarise the signed-in user's sales, purchases, payments received and outstanding receivables.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "from_date": {
+              "description": "Start date (YYYY-MM-DD).",
+              "type": "string"
+            },
+            "to_date": {
+              "description": "End date (YYYY-MM-DD).",
+              "type": "string"
+            }
+          }
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
