@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import type { ToolContext } from "@lovable.dev/mcp-js";
 
+declare const process: { env: Record<string, string | undefined> };
+
 /** Supabase client that acts as the signed-in MCP caller (RLS applies). */
 export function supabaseForUser(ctx: ToolContext) {
   return createClient(
